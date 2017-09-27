@@ -1,0 +1,171 @@
+hostname -f
+
+
+mysql -u root -p
+mysql -u retail_dba -p 
+
+
+hadoop fs -mkdir /user/cloudera/sqoop_import
+
+
+sqoop list-databases \
+--connect "jdbc:mysql://quickstart.cloudera:3306" \
+--username retail_dba \
+--password cloudera
+
+
+sqoop list-tables \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera
+
+
+sqoop eval \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--query "select * from departments"
+
+
+sqoop eval \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--query "select * from customers limit 10"
+
+
+--import tables from mysql path into hdfs as a text file
+sqoop import-all-tables \
+-m 12 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--as-textfile \
+--warehouse-dir=/user/cloudera/sqoop_import
+
+
+--see the data
+hadoop fs -tail /user/cloudera/sqoop_import/categories/part-m-00011
+
+
+--see the data
+hadoop fs -tail /user/cloudera/sqoop_import/categories/part-m-*
+
+
+--read the data and count number of lines
+hadoop fs -cat /user/cloudera/sqoop_import/order_items/part-m-* | wc -l
+
+
+--and validate the above result by run a query using mysql
+mysql -u retail_dba -p -e "select count(1) from retail_db.order_items"
+
+
+--as sqoop provides query evaluation without the need of using mysql
+--you can use sqoop to run a query directly on mysql tables
+sqoop eval \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--query "select count(1) from order_items"
+
+
+--import tables into hive using sqoop
+--This is how sqoop imports job works:
+--1-sqoop creates/imports data in tmp dir(HDFS) which is user's home dir(in your case it is /user/cloudera).
+--2-Then copy data to its actual hive location (i.e., /user/hive/wearhouse.
+--3-This categories dir should have exist before you ran import statements. so delete that dir or rename it if its important.
+--hadoop fs -rmr /user/cloudera/categories
+--OR
+--hadoop fs -mv /user/cloudera/categories /user/cloudera/categories_1
+--if it hangs, it might be due to zookeeper not working
+sqoop import-all-tables \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--hive-home /user/hive/warehouse \
+--hive-import \
+--hive-overwrite \
+--compress \
+--compression-codec org.apache.hadoop.io.compress.SnappyCodec \
+--create-hive-table \
+--outdir java_files \
+--hive-database retail_stage
+
+hadoop fs -ls /user/hive/warehouse-dir
+hive -e "show tables;"
+
+
+--import table into hive incrementally using sqoop
+--there is 2 ways:
+--1-create table while importing table
+--2-create table and the import data inot the table
+
+--go to the hive and create a database named sqoop_import and then create a table named departments
+create database sqoop_import;
+
+create table departments (
+department_id int,
+department_name string);
+
+
+--the 1st way
+sqoop import \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--hive-home /user/hive/warehouse/ \
+--hive-import \
+--hive-overwrite \
+--hive-table sqoop_import.departments \
+--outdir javafiles
+
+
+--now see the table using hive query
+select * from departments;
+
+
+--the 2nd way
+sqoop import \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--hive-home /user/hive/warehouse/ \
+--hive-import \
+--hive-overwrite \
+--hive-table sqoop_import.departments_test \
+--create-hive-table \
+--outdir javafiles
+
+--now see the table using hive query
+select * from departments_test;
+
+
+--run the following commands and you see that the contents of table are duplicated
+sqoop import \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--hive-home /user/hive/warehouse/ \
+--hive-import \
+--hive-table sqoop_import.departments \
+--outdir javafiles
+
+--now see the table using hive query
+select * from departments;
+
+
+
+
