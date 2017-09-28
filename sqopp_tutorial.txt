@@ -84,19 +84,20 @@ sqoop import-all-tables \
 --username retail_dba \
 --password cloudera \
 --hive-home /user/hive/warehouse \
+--hive-database retail_stage \
 --hive-import \
 --hive-overwrite \
 --compress \
 --compression-codec org.apache.hadoop.io.compress.SnappyCodec \
 --create-hive-table \
---outdir java_files \
---hive-database retail_stage
+--outdir java_files 
+
 
 hadoop fs -ls /user/hive/warehouse-dir
 hive -e "show tables;"
 
 
---import table into hive incrementally using sqoop
+--import single table into hive using sqoop
 --there is 2 ways:
 --1-create table while importing table
 --2-create table and the import data inot the table
@@ -119,9 +120,9 @@ sqoop import \
 --fields-terminated-by '|' \
 --lines-terminated-by '\n' \
 --hive-home /user/hive/warehouse/ \
+--hive-table sqoop_import.departments \
 --hive-import \
 --hive-overwrite \
---hive-table sqoop_import.departments \
 --outdir javafiles
 
 
@@ -166,6 +167,61 @@ sqoop import \
 --now see the table using hive query
 select * from departments;
 
+
+--import table into hdfs incrementally using Sqoop
+--append mode is not yet supported for hive!!!
+
+hadoop fs -ls /user/cloudera/sqoop_import/departments/
+hadoop fs -cat /user/cloudera/sqoop_import/departments/part-m-*
+
+sqoop import \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--append \
+--target-dir /user/cloudera/sqoop_import/departments \
+--where "department_id>5" \
+--outdir java_files
+
+hadoop fs -ls /user/cloudera/sqoop_import/departments/
+hadoop fs -cat /user/cloudera/sqoop_import/departments/part-m-*
+
+--OR
+
+hadoop fs -ls /user/cloudera/sqoop_import/departments/
+hadoop fs -cat /user/cloudera/sqoop_import/departments/part-m-*
+
+sqoop import \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--incremental append \
+--check-column department_id \
+--last-value 5 \
+--target-dir /user/cloudera/sqoop_import/departments \
+--outdir java_files
+
+hadoop fs -ls /user/cloudera/sqoop_import/departments/
+hadoop fs -cat /user/cloudera/sqoop_import/departments/part-m-*
+
+
+
+sqoop import \
+--num-mappers 1 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--incremental append \
+--check-column department_id \
+--last-value 5 \
+--hive-import \
+--target-dir /user/hive/warehouse/sqoop_import/departments \
+--outdir java_files
 
 
 
