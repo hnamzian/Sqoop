@@ -224,4 +224,126 @@ sqoop import \
 --outdir java_files
 
 
+--Export
+--frist create a table in a database in mysql
+mysql> create table order_items_export as select * from order_items where 1=2;
+
+--now export a tbale from hdfs into mysql
+sqoop export \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table order_items_export \
+--export-dir /user/cloudera/sqoop_import/order_items \
+--batch \
+--outdir java_files
+
+
+--Export in update mode
+--First compare the results of the following commands:
+
+hadoop fs -cat /user/cloudera/sqoop_import/departments/*
+
+sqoop eval \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--query "select * from departments"
+
+--create a new file named departmenst_export
+nano departments_export
+--and insert these rows to the file
+7,fanshop
+9000,testing export
+
+--copy this file into a new directory in hdfs
+hadoop fs -mkdir /user/cloudera/sqoop_import/department_export
+hadoop fs -put departments_export /user/cloudera/sqoop_import/departments_export
+hadoop fs -mv /user/cloudera/sqoop_import/department_export/departments_export \
+              /user/cloudera/sqoop_import/department_export/departments_export.csv 
+
+--export the department_export
+sqoop export \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--export-dir /user/cloudera/sqoop_import/department_export/departments_export.csv \
+--batch \
+--update-key department_id \
+--update-mode updateonly
+
+--and now check the table departments in mysql
+select * from departments
+
+
+--upsert table
+sqoop export \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--export-dir /user/cloudera/sqoop_import/department_export/departments_export.csv \
+--batch \
+--update-key department_id \
+--update-mode allowinsert
+
+--and now check the table departments in mysql
+select * from departments
+
+
+--import while formatting
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--target-dir /user/cloudera/sqoop_import/department_foramt \
+--enclosed-by \" \
+--fields-terminated-by "|" \
+--lines-terminated-by ":" 
+
+hadoop fs -cat /user/cloudera/sqoop_import/department_foramt/*
+
+--import into hive and formatting
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--table departments \
+--hive-import \
+--hive-home /user/hive/warehouse \
+--hive-table department_format \
+--create-hive-table \
+--enclosed-by \" \
+--fields-terminated-by "|" \
+--outdir java_files
+
+hadoop fs -cat /user/hive/warhouse/department_foramt/*
+
+hive -e "select * from department_format"
+
+
+--fill null values
+create table department_null(department_id int, department_name varchar(30));
+insert into department_null select * from departments;
+insert into department_null value (8, null);
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+-m 1 \
+--table department_null \
+--hive-import \
+--hive-home /user/hive/warehouse \
+--hive-table department_null \
+--create-hive-table \
+--null-string "nullstring" \
+--null-non-string 999 \
+--outdir java_files 
+
+
+
+
+
 
