@@ -343,6 +343,31 @@ sqoop import \
 --outdir java_files 
 
 
+--Export while formatting
+--first you can empty department_null table created before in mysql
+truncate table department_null;
+
+sqoop export \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username retail_dba \
+--password cloudera \
+--num-mappers 2 \
+--batch \
+--table department_null \
+--export-dir /user/hive/warehouse/department_null \
+--input-null-non-string 999 \
+--input-fields-terminated-by '\0001' \
+--input-lines-terminated-by '\n' \
+--input-null-string 'nullstring'
+--outdir java_files 
+
+
+
+
+
+
+
+
 
 
 
